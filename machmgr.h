@@ -134,5 +134,18 @@ void machmgr_handle_death(pid_t p);
 /* Rename the currently selected machine */
 void machmgr_rename(char *newname);
 
+/* wdh's reconect */
+void machmgr_reverse_tag();
+void machmgr_reconnect();
+void machmgr_mark_selmach();
+void machmgr_mark_section();
+void machmgr_mark_section_all();
+void machmgr_unmark_section_all();
+void machmgr_remark_section_all();
+void machmgr_tag_step(int length,int step);
+void machmgr_goto_selmach(int num);
+void machmgr_reverse_tag();
+/*end by wdh*/
+
 #endif
 

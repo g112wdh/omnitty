@@ -28,8 +28,9 @@
 #include <stdlib.h>
 #include "help.h"
 
-#define MENU_LINES 12
-#define MENU_COLS  38
+//#define MENU_LINES 12
+#define MENU_LINES 18
+#define MENU_COLS  80
 
 #define MENU_CONTENTS \
                     "{[h]} online help\n" \
@@ -38,7 +39,14 @@
                     "{[T]} tag all machines (live & dead)\n" \
                     "{[u]} untag all machines\n" \
                     "{[z]} delete dead machines\n" \
-                    "{[d]} delete all TAGGED machines\n" \
+		    "{[w]} reconnect to dead machines\n" \
+		    "{[m]} mark section  machines from downup to selmach or selmach to mark or 0\n" \
+		    "{[M]} reverse mark section\n" \
+		    "{[n]} mark all \n" \
+		    "{[N]} unmark all \n" \
+		    "{[b]} reverse tag marked all \n" \
+		    "{[g]} goto line\n" \
+		    "{[d]} delete all TAGGED machines\n" \
                     "{[X]} delete all machines\n" \
                     "{[q]} quit application\n"
 
@@ -64,7 +72,7 @@ void menu_show() {
    curutil_window_fill(w, ' ');
    
    wborder(w, 0, 0, 0, 0, 0, 0, 0, 0);
-   wmove(w, 0, 3); waddstr(w, "[ Menu ]");
+   wmove(w, 0, 5); waddstr(w, "[ Menu ]");
    
    wmove(w, i = 1, 1); 
    p = MENU_CONTENTS;
@@ -104,6 +112,17 @@ void menu_show() {
       case 'T': machmgr_tag_all(false); break;
       case 'u': machmgr_untag_all(); break;
       case 'z': machmgr_delete_dead(); break;
+      case 'w': machmgr_reconnect();break;
+      case 'm': machmgr_mark_section();break;
+      case 'M': machmgr_remark_section_all();break;
+      case 'n': machmgr_mark_section_all();break;
+      case 'N': machmgr_unmark_section_all();break;
+      case 'b': machmgr_reverse_tag_marked();break;
+
+      case 'g': *buf = 0;
+                if (minibuf_prompt(minibuf, 
+				   "go to line:", 0x90, buf, 5)) machmgr_goto_selmach(atoi(buf));
+                break;
       case 'd': *buf = 0;
                 if (minibuf_prompt(minibuf, 
                       "Really delete all TAGGED machines [y/n]?", 0x90, buf, 2)

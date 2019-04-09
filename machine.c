@@ -33,6 +33,7 @@ Machine *machine_new(const char *name, int vtrows, int vtcols) {
    memset(m, 0, sizeof(Machine));
    
    m->alive = true;
+   m->mark = false;
    m->name = strdup(name);
    m->vt = rote_vt_create(vtrows, vtcols);
 
@@ -56,6 +57,26 @@ void machine_rename(Machine *m, char *newname) {
   free(m->name);
   m->name = strdup(newname);
 }
+/*add by wdh */
+void machine_mark(Machine *m){
+  if (!m) return;
+  m->mark=! m->mark;
+}
+
+void machine_reconnect(Machine *m){
+  static char cmd[128];
+  if (!m) return ;
+  if (m->alive == true)
+    return ;
+  else{
+    m->alive=true;
+    if (120 < snprintf(cmd, 120, CMD_FORMAT, m->name)) abort();
+    m->pid = rote_vt_forkpty(m->vt,cmd);
+    return ;
+  }
+}
+/* end by wdh */
+
 
 void machine_tag_push(Machine *m) {
    if (m->tagstack_count >= TAGSTACK_SIZE) return;
@@ -66,4 +87,6 @@ void machine_tag_pop(Machine *m) {
    if (!m->tagstack_count) return;
    m->tag = m->tagstack[--m->tagstack_count];
 }
+
+
 

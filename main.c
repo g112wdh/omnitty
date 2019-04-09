@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <string.h>
+#include<stdlib.h>
 
 #include "curutil.h"
 #include "machine.h"
@@ -36,34 +37,52 @@
 /* minimum terminal dimensions to run program */
 #define MIN_REQUIRED_WIDTH 80
 #define MIN_REQUIRED_HEIGHT 25
-
-#define REMINDER_LINE "OmNiTTY-R v" OMNITTY_VERSION \
+/* #define REMINDER_LINE "OmNiTTY-R v"   OMNITTY_VERSION \ */
+/*                       "  \007F1\007:menu  \006F2/3\007:sel  \003F4\007:tag" \ */
+/*                       "  \002F5\007:add  \001F6\007:del" \ */
+/*                       "  \005F7\007:mcast  \005F8\007:del_imi \005F9\007:reconnect  \005F10\007:reverse_tag" */
+#define REMINDER_LINE "machines 0 tag 0 untag 0"    \
                       "  \007F1\007:menu  \006F2/3\007:sel  \003F4\007:tag" \
                       "  \002F5\007:add  \001F6\007:del" \
-                      "  \005F7\007:mcast"
+                      "  \005F7\007:mcast  \005F8\007:set_step \005F9\007:reconnect  \005F10\007:reverse_tag \005F11\007:step \005F12\007:mark"
 
 #define SPLASH_LINE_1 "OmNiTTY Reborn v" OMNITTY_VERSION
 #define SPLASH_LINE_2 "Copyright (c) 2004 Bruno T. C. de Oliveira"
 
 /* how many characters wide the list window will be, by default */
-#define LISTWIN_DEFAULT_CHARS 8
-#define TERMWIN_DEFAULT_CHARS 80
+#define LISTWIN_DEFAULT_CHARS 16
+//#define TERMWIN_DEFAULT_CHARS 80
+#define TERMWIN_DEFAULT_CHARS 128
 #define TERMWIN_MIN 80
+#define MACHINE_MAX 2048
+/* define the toggle_tag  length default is 4 ,step 1 */
+#define TOGGLE_TAG_STEP 1
+#define TOGGLE_TAG_LENGTH 4
 
-#define RTFM "Syntax: omnitty [-W list_width] [-T term_width]\n" \
+#define RTFM "Syntax: omnitty [-W list_width] [-T term_width] [-f iplist_file]\n" \
              "\n" \
              "     -W        specifies width of machine list area\n" \
              "               (default is 8 characters)\n" \
              "\n" \
              "     -T        specifies width of terminal area\n" \
              "               (default is 80 characters)\n" \
-             "\n"
+             "\n" \
+	     "     -f        specifies ip list file one per line\n" \
+	     "\n" 
+
 
 static WINDOW *listwin   = NULL;
 static WINDOW *sumwin    = NULL;
 static WINDOW *vtwin     = NULL;
 static WINDOW *minibuf = NULL;
 static volatile int zombie_count = 0;
+
+//add by wdh for resize of the screen
+static int termrows_before =0; 
+static int termcols_before=0;
+static int toggle_tag_step = TOGGLE_TAG_STEP;
+static int toggle_tag_length = TOGGLE_TAG_LENGTH;
+//end by wdh
 
 void sigchld_handler(int signo) { zombie_count++; }
 
@@ -88,6 +107,7 @@ void curses_init() {
    define_key("\e[15~", KEY_F(5)); define_key("\e[17~", KEY_F(6));
    define_key("\e[18~", KEY_F(7)); define_key("\e[19~", KEY_F(8));
    define_key("\e[20~", KEY_F(9)); define_key("\e[21~", KEY_F(10));
+   define_key("\e[23~", KEY_F(11)); define_key("\e[24~", KEY_F(12));
 
    getmaxyx(stdscr, h, w);
    if (h < MIN_REQUIRED_HEIGHT || w < MIN_REQUIRED_WIDTH) {
@@ -128,7 +148,8 @@ void wins_init(int *vtrows, int *vtcols, int list_win_chars,
 
    /* obtain terminal dimensions */
    getmaxyx(stdscr, termrows, termcols);
-
+   termrows_before=termrows;
+   termcols_before=termcols;
    /* the geometry is hard-coded here, but nowhere else... so I don't
     * see a lot of point using #defines or anything any more sophisticated */
    A = list_win_chars + 2;
@@ -242,6 +263,39 @@ void redraw(bool force_full_redraw) {
    update_cast_label();
 }
 
+/* every time add/delete print the number of machines  by wdh*/
+/* void print_machine_num(){ */
+/*   char s[10]; */
+/*   int termrows,termcols; */
+/*   extern  int machcount; */
+/*   const char *p; */
+/*   char message[1000]="machines "; */
+/*   sprintf(s,"%d",machcount); */
+/*   strcat(message,   s ); */
+/*   strcat(message, */
+/*                       "  \007F1\007:menu  \006F2/3\007:sel  \003F4\007:tag" \ */
+/*                       "  \002F5\007:add  \001F6\007:del" \ */
+/* 	 "  \005F7\007:mcast  \005F8\007:del_imi \005F9\007:reconnect  \005F10\007:reverse_tag"); */
+/*   /\* printf("%s", message); *\/ */
+/*   getmaxyx(stdscr, termrows, termcols); */
+  
+/*   wattrset(stdscr, COLOR_PAIR(4*8) | A_BOLD); */
+/*   wmove(stdscr, termrows-2, 0); */
+/*   whline(stdscr, ' ', termcols); */
+/*   wmove(stdscr, termrows-2, 0); */
+
+/*   p=message; */
+/*   while (*p) { */
+/*     if (*p >= 0 && *p <= 7) */
+/*       wattrset(stdscr, COLOR_PAIR(4*8 + 7 - *p) | A_BOLD); */
+/*     else */
+/*       waddch(stdscr, *p); */
+/*     p++; */
+/*   } */
+
+
+/* } */
+/* /\* end by wdh *\/ */
 static void add_machines_from_file(const char *file) {
    static char buf[128];
    bool pipe = false;
@@ -285,6 +339,7 @@ static void add_machines_from_file(const char *file) {
       fclose(f);
 
    minibuf_put(minibuf, NULL, 0x70);
+   //   print_machine_num();
 }
 
 static void add_machine() {
@@ -295,6 +350,16 @@ static void add_machine() {
       if (*buf == '@') add_machines_from_file(buf+1);
       else machmgr_add(buf);
    }
+   //   print_machine_num();
+}
+static void set_tag_step() {
+   static char buf[5];
+   *buf = 0;
+   if (minibuf_prompt(minibuf, "please set the tag length(F11) default is 4 step is 1 (@1): ", 0xE0, buf, 5)) {
+     if (*buf == '@') toggle_tag_step = atoi(buf+1);
+     else toggle_tag_length = atoi(buf);
+   }
+
 }
 
 static void delete_machine() {
@@ -302,6 +367,7 @@ static void delete_machine() {
    *buf = 0;
    if (minibuf_prompt(minibuf, "Really delete it [y/n]?", 0x90, buf, 2)
        && (*buf == 'y' || *buf == 'Y')) machmgr_delete_current();
+   //   print_machine_num();
 }
 
 int main(int argc, char **argv) {
@@ -309,10 +375,15 @@ int main(int argc, char **argv) {
    int list_win_chars = LISTWIN_DEFAULT_CHARS;
    int term_win_chars = TERMWIN_DEFAULT_CHARS;
    bool quit = false;
+   bool isfromfile= false;
+   static char from_file[128];
+   static char hostbuf[128];	
+   char hosts[MACHINE_MAX][128]={0} ;
+   int host_count=0;
    pid_t chldpid;
-
+   int termrows_now, termcols_now;
    /* process command-line options */
-   while ( 0 < (ch = getopt(argc, argv, "W:T:")) ) {
+   while ( 0 < (ch = getopt(argc, argv, "W:T:f:")) ) {
       switch (ch) {
          case 'W': list_win_chars = atoi(optarg); break;
 	 case 'T': term_win_chars = atoi(optarg);
@@ -323,8 +394,16 @@ int main(int argc, char **argv) {
 		       exit(2);
 		   }
 		   break;
+      case 'f': 
+	strcat(from_file,optarg);
+	isfromfile=true;
+	break;
          default: fputs(RTFM, stderr); exit(2);
       }
+   }
+
+   if (isfromfile && from_file[0] == '-'  ){
+     while (1 == fscanf(stdin, "%s", hostbuf)) strcpy(hosts[host_count++],hostbuf);
    }
    signal(SIGCHLD, sigchld_handler);
    curses_init();
@@ -339,9 +418,27 @@ int main(int argc, char **argv) {
          chldpid = wait(NULL);
          machmgr_handle_death(chldpid);
       }
-
+      /* for resize  */
+      getmaxyx(stdscr, termrows_now, termcols_now);
+      if (termrows_now != termrows_before || termcols_now != termcols_before){
+         //curses_init();
+	wins_init(&vtrows, &vtcols, list_win_chars, term_win_chars);
+   //machmgr_init(listwin, vtrows, vtcols);
+	}
+      /* end for resize  */
       machmgr_update();
       redraw(false);
+      if (isfromfile && from_file[0] != '-'){
+	add_machines_from_file(from_file);
+	isfromfile= false;
+      }
+      if (isfromfile && from_file[0] == '-'  ) {
+	for (host_count=0;host_count<MACHINE_MAX ;host_count++){
+	machmgr_add(hosts[host_count]);
+	}
+	isfromfile= false;
+      }
+
 
       ch = getch();
       if (ch < 0) continue;
@@ -354,6 +451,12 @@ int main(int argc, char **argv) {
          case KEY_F(5): add_machine(); break;
          case KEY_F(6): delete_machine(); break;
          case KEY_F(7): machmgr_toggle_multicast(); break;
+	   //case KEY_F(8): machmgr_delete_current(); break;
+         case KEY_F(8): set_tag_step(); break;
+         case KEY_F(9): machmgr_reconnect();break;
+         case KEY_F(10): machmgr_reverse_tag();break;
+         case KEY_F(11): machmgr_tag_step(toggle_tag_length,toggle_tag_step);break;
+         case KEY_F(12): machmgr_mark_selmach();break;
          default: machmgr_forward_keypress(ch); break;
       }
    }

@@ -35,6 +35,8 @@ typedef struct Machine_ {
    bool alive;  /* initially set to true; set to false when 
                  * main program notifies that a certain pid has died and
                  * it matches this machine's ssh pid */
+  
+  bool mark; /* mark a machine ,then select many */
 
    RoteTerm *vt; /* the machine's virtual terminal (ROTE library) */
    pid_t pid;    /* pid of ssh process running in terminal */
@@ -64,5 +66,8 @@ void machine_tag_pop(Machine*);
 /* Rename a machine */
 void machine_rename(Machine*, char*);
 
+/* add by wdh for reconnect to machine */
+void machine_reconnect(Machine*);
+void machine_mark(Machine*);
 #endif
 

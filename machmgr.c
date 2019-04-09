@@ -28,11 +28,13 @@
 #include <string.h>
 #include <alloca.h>
 
-#define MACHINE_MAX 256
+/*#define MACHINE_MAX 256 */
+#define MACHINE_MAX 2048 
 
 /* List of machines */
 static Machine *machs[MACHINE_MAX];
 static int machcount = 0;
+// int machcount = 0;
 static int selmach = 0;    /* currently selected machine */
 static int scrollpos = 0;  /* machine being shown at the top of the list */
 static int vtrows, vtcols;
@@ -69,13 +71,42 @@ static void machmgr_setselmach(int s) {
 static void machmgr_selmach_validate() {
    machmgr_setselmach(selmach);
 }
+void machmgr_mark_selmach(){
+   machine_mark(machs[selmach]);
+   machmgr_update();
+}
+
+/* mark from down to up start mark to selmach or selmach to mark */
+void machmgr_mark_section(){
+  int i=0, j=0;
+  for (i = machcount - 1 ; i >= 0; i--){
+    if(  i > selmach ){
+      if (machs[i]->mark != true){
+	continue;
+      }
+      for (j = i-1;j >= selmach ;j--){
+	machs[j]->mark = true;
+      }
+      return ;
+    }
+    else if (i < selmach){
+      if (machs[i]->mark != true &&  i != 0) {
+	    continue;
+      }
+      for ( j = selmach ; j > i;j--){
+	machs[j]->mark = true;
+      }
+    return;
+    }
+  }
+}
+
 
 void machmgr_draw_list() {
    unsigned char attr;
    const char *p;
    int w, h;
    int i, j;
-
    werase(listwin);
    getmaxyx(listwin, h, w);
 
@@ -90,6 +121,7 @@ void machmgr_draw_list() {
       wmove(listwin, i - scrollpos, 0);
 
       waddch(listwin, machs[i]->tag ? '*' : ' ');
+      waddch(listwin, machs[i]->mark ? '=' : ' ');
 
       /* now we have to print the first w-2 characters of machs[i]->name,
        * padding with spaces at the end if necessary to complete w-2
@@ -104,11 +136,58 @@ void machmgr_draw_list() {
    }
 }
 
+/* every time add/delete print the number of machines  by wdh*/
+void print_machine_num(){
+  char machine[10];
+  char mess_tags[100];
+  int termrows,termcols,tags_n=0,untags_n=0,i;
+  extern  int machcount;
+  const char *p;
+  char message[1000]="machines ";
+  sprintf(machine,"%d",machcount);
+  for (i = 0; i < machcount; i++)
+    if (machs[i]->tag == false)
+      untags_n++;
+    else
+      tags_n++;
+  strcat(message,   machine );
+  sprintf(mess_tags," tags %d selmach %d ",tags_n,selmach+1);
+  strcat(message,mess_tags);
+  strcat(message,
+                      "  \007F1\007:menu  \006F2/3\007:sel  \003F4\007:tag" \
+                      "  \002F5\007:add  \001F6\007:del" \
+	 "  \005F7\007:mcast  \005F8\007:set_setp \005F9\007:reconnect  \005F10\007:reverse_tag \005F11\007:step \005F12\007:mark");
+  /* printf("%s", message); */
+  getmaxyx(stdscr, termrows, termcols);
+  
+  wattrset(stdscr, COLOR_PAIR(4*8) | A_BOLD);
+  wmove(stdscr, termrows-2, 0);
+  whline(stdscr, ' ', termcols);
+  wmove(stdscr, termrows-2, 0);
+
+  p=message;
+  while (*p) {
+    if (*p >= 0 && *p <= 7)
+      wattrset(stdscr, COLOR_PAIR(4*8 + 7 - *p) | A_BOLD);
+    else
+      waddch(stdscr, *p);
+    p++;
+  }
+
+
+}
+/* end by wdh */
+
+
+
+
+
 void machmgr_add(const char *machname) {
    if (!*machname) return;
    if (machcount >= MACHINE_MAX) return;
    machs[machcount++] = machine_new(machname, vtrows, vtcols);
    machmgr_selmach_validate();
+   print_machine_num();
 }
 
 static void machmgr_delete(int index) {
@@ -120,6 +199,7 @@ static void machmgr_delete(int index) {
    machcount--;
 
    machmgr_selmach_validate();
+   print_machine_num();
 }
 
 void machmgr_delete_tagged() {
@@ -139,10 +219,13 @@ void machmgr_delete_tagged() {
    
    machcount = i;
    machmgr_selmach_validate();
+   print_machine_num();
 }
+
 
 void machmgr_delete_current() {
    machmgr_delete(selmach);
+   print_machine_num();
 }
 
 static void make_vt_summary(RoteTerm *rt, char *buf, int len) {
@@ -197,13 +280,22 @@ void machmgr_rename(char *newname) {
    machine_rename(machs[selmach], newname);
    machmgr_update();
 }
+void machmgr_reconnect(){
+  int i;
+  for(i=0;i< machcount;i++)
+    machine_reconnect(machs[i]);
+  machmgr_update();
+  print_machine_num();
+}
 
 void machmgr_prev_machine() {
    machmgr_setselmach(selmach - 1);
+   print_machine_num();
 }
 
 void machmgr_next_machine() {
    machmgr_setselmach(selmach + 1);
+   print_machine_num();
 }
 
 void machmgr_forward_keypress(int k) {
@@ -238,28 +330,87 @@ bool machmgr_is_multicast() {
 void machmgr_toggle_tag_current() {
    if (selmach >= 0 && selmach < machcount)
       machs[selmach]->tag = !machs[selmach]->tag;
+   print_machine_num();
 }
 
+void machmgr_reverse_tag(){
+  int i;
+  for (i=0;i< machcount;i++)
+    machs[i]->tag=!machs[i]->tag;
+  print_machine_num();
+
+}
 void machmgr_delete_all() {
    int i;
    for (i = 0; i < machcount; i++) machine_destroy(machs[i]);
    machcount = selmach = scrollpos = 0;
+   print_machine_num();
 }
 
 void machmgr_tag_all(bool ignore_dead) {
    int i;
    for (i = 0; i < machcount; i++)
       machs[i]->tag = (!ignore_dead || machs[i]->alive);
+   print_machine_num();
 }
 
 void machmgr_untag_all() {
    int i;
    for (i = 0; i < machcount; i++) machs[i]->tag = false;
+   print_machine_num();
 }
 
 void machmgr_delete_dead() {
    int i;
    for (i = machcount - 1; i >= 0; i--)
       if (!machs[i]->alive) machmgr_delete(i);
+   print_machine_num();
 }
 
+void machmgr_mark_section_all() {
+  int i;
+   for (i = 0; i < machcount; i++) machs[i]->mark = true;
+   print_machine_num();
+}
+void machmgr_unmark_section_all() {
+  int i;
+  for (i = 0; i < machcount; i++) machs[i]->mark = false;
+  print_machine_num();
+}
+void machmgr_remark_section_all(){
+  int i;
+  for (i = 0; i < machcount; i++) machs[i]->mark = !machs[i]->mark;
+  print_machine_num();
+}
+
+void machmgr_tag_step(int length,int step){
+  int i=0 ;
+  int selnow=selmach ;
+  int total_length=selnow + length*step;
+  if(step >1)
+    for(i=selnow ; i< total_length && i < machcount ; i=i+step) {
+      machs[i]->tag = true;
+    }
+  else if(step == 1)
+    for(i=selnow ; i< total_length && i < machcount ; i=i+step) {
+      machs[i]->tag = true;
+      selmach=i+1;
+      if (selmach > machcount -1 )
+	selmach = machcount - 1 ;
+    }
+  print_machine_num();
+}
+
+void machmgr_goto_selmach(int num){
+  if ( num >= machcount || num == -1  ) num = machcount ; 
+  if ( num <= 0 ) num=1;
+  selmach=num-1;
+  print_machine_num();
+}
+
+void machmgr_reverse_tag_marked(){
+  int i ;
+  for ( i = 0; i < machcount; i++ ){
+    if (machs[i]->mark == true ) machs[i]->tag= !machs[i]->tag;
+  }
+}
